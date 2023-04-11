@@ -1,0 +1,190 @@
+
+
+POST squad4_product_feed_ksa/_search?filter_path=aggregations
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "nested": {
+            "query": {
+              "terms": {
+                "stockLocations.inventoryLocation.keyword": [
+                  "UAE_08150"
+                ],
+                "boost": 1
+              }
+            },
+            "path": "stockLocations",
+            "ignore_unmapped": false,
+            "score_mode": "avg",
+            "boost": 1
+          }
+        },
+        {
+          "term": {
+            "productEnrichment.configured": {
+              "value": true,
+              "boost": 1
+            }
+          }
+        },
+        {
+          "nested": {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "terms": {
+                      "pricing.code.keyword": [
+                        "UAE",
+                        "UAE_08150"
+                      ],
+                      "boost": 1
+                    }
+                  },
+                  {
+                    "range": {
+                      "pricing.endDate": {
+                        "from": 1648708158002,
+                        "to": null,
+                        "include_lower": true,
+                        "include_upper": true,
+                        "boost": 1
+                      }
+                    }
+                  },
+                  {
+                    "range": {
+                      "pricing.startDate": {
+                        "from": null,
+                        "to": 1648708158002,
+                        "include_lower": true,
+                        "include_upper": true,
+                        "boost": 1
+                      }
+                    }
+                  }
+                ],
+                "adjust_pure_negative": true,
+                "boost": 1
+              }
+            },
+            "path": "pricing",
+            "ignore_unmapped": false,
+            "score_mode": "avg",
+            "boost": 1
+          }
+        },
+        {
+          "term": {
+            "isFreeOfCost": {
+              "value": false,
+              "boost": 1
+            }
+          }
+        }
+      ],
+      "adjust_pure_negative": true,
+      "boost": 1
+    }
+  },
+  "aggs": {
+    "pmid_distributor_agg": {
+      "composite": {
+        "size": 10000,
+        "sources": [
+          {
+            "group_distributor": {
+              "terms": {
+                "field": "distributorCode.keyword",
+                "missing_bucket": false,
+                "order": "asc"
+              }
+            }
+          },
+          {
+            "group_pmid": {
+              "terms": {
+                "field": "pmid.keyword",
+                "missing_bucket": false,
+                "order": "asc"
+              }
+            }
+          }
+        ]
+      },
+      "aggregations": {
+        "price_agg_nested": {
+          "nested": {
+            "path": "pricing"
+          },
+          "aggregations": {
+            "filter_active_price": {
+              "filter": {
+                "bool": {
+                  "must": [
+                    {
+                      "terms": {
+                        "pricing.code.keyword": [
+                          "UAE",
+                          "UAE_08150"
+                        ],
+                        "boost": 1
+                      }
+                    },
+                    {
+                      "range": {
+                        "pricing.endDate": {
+                          "from": 1648710178248,
+                          "to": null,
+                          "include_lower": true,
+                          "include_upper": true,
+                          "boost": 1
+                        }
+                      }
+                    },
+                    {
+                      "range": {
+                        "pricing.startDate": {
+                          "from": null,
+                          "to": 1648710178248,
+                          "include_lower": true,
+                          "include_upper": true,
+                          "boost": 1
+                        }
+                      }
+                    }
+                  ],
+                  "adjust_pure_negative": true,
+                  "boost": 1
+                }
+              },
+              "aggregations": {
+                "price_min": {
+                  "min": {
+                    "field": "pricing.price"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "bucket_truncate": {
+          "bucket_sort": {
+            "sort": [
+              {
+                "price_agg_nested>filter_active_price>price_min": {
+                  "order": "desc"
+                }
+              }
+            ],
+            "from": 0,
+            "size": 10000,
+            "gap_policy": "SKIP"
+          }
+        }
+      }
+    }
+  }
+}
